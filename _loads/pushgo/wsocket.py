@@ -6,6 +6,7 @@
 import json
 import time
 import os
+import pprint
 import sys
 import logging
 
@@ -238,3 +239,41 @@ class FuzzClient(WsClient):
         logger.error(self.data)
         time.sleep(self.sleep)
         self.send_fuzz()
+
+class StandardClient(WsClient):
+    """ Registers for a channel and keeps hitting it repeatedly, tracking updates. """
+    def __init__(self, *args, **kw):
+        super(StandardClient, self).__init__(*args, **kw)
+        self.max_sleep = MAX_SLEEP
+        self.max_updates = MAX_UPDATES
+        self.channelIDs = {}
+
+    def proc_data(self):
+        logger.error(self.data)
+        if "messageType" in self.data:
+            if self.data["messageType"] == "hello":
+                self.reg()
+            elif self.data["messageType"] == "register":
+                endpoint = self.data["pushEndpoint"]
+                channelID = self.data["channelID"]
+                self.chan = channelID
+                send_http_put(endpoint, 'version=%d'%int(time.time()*1000))
+                self.channelIDs[channelID] = { 'last_updated': time.time(), 'received_updates': 0, 'sent_updates': 1, 'endpoint': endpoint }
+            elif self.data["messageType"] == "notification":
+                for update in self.data["updates"]:
+                    print 'Recd version ', update['channelID'], update['version']
+                    if self.version == update['version']:
+                        raise Exception("Same version %d"%self.version)
+                    entry = self.channelIDs[update['channelID']]
+                    entry['last_updated'] = time.time()
+                    entry['received_updates'] += 1
+                    self.version = update['version']
+                    self.ack()
+                    send_http_put(entry['endpoint'], 'version=%d'%int(time.time()*1000))
+                    entry['sent_updates'] += 1
+
+    def closed(self, code, reason=None):
+        super(WsClient, self).closed(code, reason)
+        pprint.pprint(self.channelIDs)
+        self.closer.kill()
+

@@ -15,9 +15,11 @@ from wsocket import (WsClient,
                      PingClient,
                      HelloClient,
                      ChanClient,
-                     FuzzClient)
+                     FuzzClient,
+                     StandardClient)
 
-TARGET_SERVER = "ws://ec2-54-244-206-75.us-west-2.compute.amazonaws.com:8080"
+#TARGET_SERVER = "ws://ec2-54-244-206-75.us-west-2.compute.amazonaws.com:8080"
+TARGET_SERVER = "wss://push.services.mozilla.com"
 PATCHED = False
 TIMEOUT = 60
 MIN_SLEEP = 5
@@ -128,6 +130,14 @@ class TestLoad(TestCase):
 
     def test_fuzz_long(self):
         ws = self.create_ws(TARGET_SERVER, klass=FuzzClient)
+        ws.sleep = MIN_SLEEP
+        ws.max_sleep = MAX_SLEEP
+        ws.max_updates = MAX_UPDATES
+        ws.connect()
+        ws.run_forever(timeout=TIMEOUT)
+
+    def test_standard(self):
+        ws = self.create_ws(TARGET_SERVER, klass=StandardClient)
         ws.sleep = MIN_SLEEP
         ws.max_sleep = MAX_SLEEP
         ws.max_updates = MAX_UPDATES
